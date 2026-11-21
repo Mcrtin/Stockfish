@@ -37,23 +37,17 @@ namespace Stockfish {
 struct SharedHistories;
 
 // StateInfo struct stores information needed to restore a Position object to
-// its previous state when we retract a move. Whenever a move is made on the
-// board (by calling Position::do_move), a StateInfo object must be passed.
-
+// its previous state when we retract a move.
 struct StateInfo {
-
-    // Copied when making a move
-    Key    materialKey;
-    Key    pawnKey;
-    Key    minorPieceKey;
-    Key    nonPawnKey[COLOR_NB];
-    Value  nonPawnMaterial[COLOR_NB];
-    int    castlingRights;
-    int    rule50;
-    int    pliesFromNull;
-    Square epSquare;
-
-    // Not copied when making a move (will be recomputed anyhow)
+    Key                materialKey;
+    Key                pawnKey;
+    Key                minorPieceKey;
+    Key                nonPawnKey[COLOR_NB];
+    Value              nonPawnMaterial[COLOR_NB];
+    int                castlingRights;
+    int                rule50;
+    int                pliesFromNull;
+    Square             epSquare;
     Key                key;
     Bitboard           checkersBB;
     Bitboard           blockersForKing[COLOR_NB];
@@ -118,12 +112,12 @@ class Position {
     // Attacks to/from a given square
     Bitboard attackers_to(Square s) const;
     Bitboard attackers_to(Square s, Bitboard occupied) const;
-    void     update_slider_blockers(Color c) const;
+    void     update_slider_blockers(Color c);
     Bitboard xattacks_by(PieceType pt, Color c, Bitboard occupied) const;
-    Bitboard threats_by(PieceType pt) const;
+    Bitboard threats_by(PieceType pt);
 
     // Properties of moves
-    bool  legal(Move m) const;
+    bool  legal(Move m);
     bool  capture(Move m) const;
     bool  capture_stage(Move m) const;
     bool  gives_check(Move m) const;
@@ -153,7 +147,7 @@ class Position {
     Color side_to_move() const;
     int   game_ply() const;
     bool  is_chess960() const;
-    bool  is_draw(int ply) const;
+    bool  is_draw(int ply);
     bool  is_repetition(int ply) const;
     bool  upcoming_repetition(int ply) const;
     bool  has_repeated() const;
@@ -178,9 +172,9 @@ class Position {
     // Initialization helpers (used while setting up a position)
     void set_castling_right(Color c, Square rfrom);
     Key  compute_material_key() const;
-    void set_state() const;
-    void set_extra_bitboards() const;
-    void compute_threats() const;
+    void set_state();
+    void set_extra_bitboards();
+    void compute_threats();
 
     // Other helpers
     template<bool ComputeRay = true>
@@ -206,17 +200,17 @@ class Position {
     std::array<Bitboard, PIECE_TYPE_NB> byTypeBB;
     std::array<Bitboard, COLOR_NB>      byColorBB;
 
-    int        pieceCount[PIECE_NB];
-    int        castlingRightsMask[SQUARE_NB];
-    Square     castlingRookSquare[CASTLING_RIGHT_NB];
-    Bitboard   castlingPath[CASTLING_RIGHT_NB];
-    int        gamePly;
-    Color      sideToMove;
-    bool       chess960;
-    Dirties    scratchDirties;
-    u16        stateIdx;
-    StateInfo* st;
-    StateInfo  stateInfos[MAX_HIST];
+    int       pieceCount[PIECE_NB];
+    int       castlingRightsMask[SQUARE_NB];
+    Square    castlingRookSquare[CASTLING_RIGHT_NB];
+    Bitboard  castlingPath[CASTLING_RIGHT_NB];
+    int       gamePly;
+    Color     sideToMove;
+    bool      chess960;
+    Dirties   scratchDirties;
+    StateInfo st;
+    u16       stateIdx;
+    StateInfo stateHist[MAX_HIST];
 };
 
 std::ostream& operator<<(std::ostream& os, const Position& pos);
@@ -264,9 +258,9 @@ inline Square Position::square(Color c) const {
     return lsb(pieces(c, Pt));
 }
 
-inline Square Position::ep_square() const { return st->epSquare; }
+inline Square Position::ep_square() const { return st.epSquare; }
 
-inline bool Position::can_castle(CastlingRights cr) const { return st->castlingRights & cr; }
+inline bool Position::can_castle(CastlingRights cr) const { return st.castlingRights & cr; }
 
 inline bool Position::castling_impeded(CastlingRights cr) const {
     assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
@@ -296,38 +290,38 @@ inline Bitboard Position::xattacks_by(PieceType pt, Color c, Bitboard occupied) 
     }
 }
 
-inline Bitboard Position::threats_by(PieceType pt) const {
-    if (!st->threats[ALL_PIECES])
+inline Bitboard Position::threats_by(PieceType pt) {
+    if (!st.threats[ALL_PIECES])
         compute_threats();
-    return st->threats[pt];
+    return st.threats[pt];
 }
 
-inline Bitboard Position::checkers() const { return st->checkersBB; }
+inline Bitboard Position::checkers() const { return st.checkersBB; }
 
-inline Bitboard Position::blockers_for_king(Color c) const { return st->blockersForKing[c]; }
+inline Bitboard Position::blockers_for_king(Color c) const { return st.blockersForKing[c]; }
 
-inline Bitboard Position::pinners(Color c) const { return st->pinners[c]; }
+inline Bitboard Position::pinners(Color c) const { return st.pinners[c]; }
 
-inline Bitboard Position::check_squares(PieceType pt) const { return st->checkSquares[pt]; }
+inline Bitboard Position::check_squares(PieceType pt) const { return st.checkSquares[pt]; }
 
-inline Key Position::key() const { return adjust_key50(st->key); }
+inline Key Position::key() const { return adjust_key50(st.key); }
 
 template<bool AfterMove>
 inline Key Position::adjust_key50(Key k) const {
-    return st->rule50 < 14 - AfterMove ? k : k ^ make_key((st->rule50 - (14 - AfterMove)) / 8) << 1;
+    return st.rule50 < 14 - AfterMove ? k : k ^ make_key((st.rule50 - (14 - AfterMove)) / 8) << 1;
 }
 
-inline Key Position::pawn_key() const { return st->pawnKey ^ sideToMove; }
+inline Key Position::pawn_key() const { return st.pawnKey ^ sideToMove; }
 
-inline Key Position::material_key() const { return st->materialKey; }
+inline Key Position::material_key() const { return st.materialKey; }
 
-inline Key Position::minor_piece_key() const { return st->minorPieceKey ^ sideToMove; }
+inline Key Position::minor_piece_key() const { return st.minorPieceKey ^ sideToMove; }
 
-inline Key Position::non_pawn_key(Color c) const { return st->nonPawnKey[c] ^ sideToMove; }
+inline Key Position::non_pawn_key(Color c) const { return st.nonPawnKey[c] ^ sideToMove; }
 
-inline Value Position::non_pawn_material(Color c) const { return st->nonPawnMaterial[c]; }
+inline Value Position::non_pawn_material(Color c) const { return st.nonPawnMaterial[c]; }
 
-inline int Position::plies_from_null() const { return st->pliesFromNull; }
+inline int Position::plies_from_null() const { return st.pliesFromNull; }
 
 inline Value Position::non_pawn_material() const {
     return non_pawn_material(WHITE) + non_pawn_material(BLACK);
@@ -335,7 +329,7 @@ inline Value Position::non_pawn_material() const {
 
 inline int Position::game_ply() const { return gamePly; }
 
-inline int Position::rule50_count() const { return st->rule50; }
+inline int Position::rule50_count() const { return st.rule50; }
 
 inline bool Position::is_chess960() const { return chess960; }
 
@@ -372,7 +366,7 @@ inline bool Position::capture_stage(Move m) const {
     return mt == EN_PASSANT;
 }
 
-inline Piece Position::captured_piece() const { return st->capturedPiece; }
+inline Piece Position::captured_piece() const { return st.capturedPiece; }
 
 inline void Position::put_piece(Piece pc, Square s, DirtyThreats* const dts) {
     board[s] = pc;
