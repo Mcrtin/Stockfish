@@ -223,6 +223,7 @@ class Position {
     u16        stateIdx;
     StateInfo* st;
     StateInfo  stateInfos[MAX_STATES];
+    int        repetition;
     u16        repIdx;
     RepEntry   repHist[MAX_REP];
 };

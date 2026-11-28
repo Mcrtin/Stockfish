@@ -358,8 +358,7 @@ std::optional<PositionSetError> Position::set(const string& fenStr, bool isChess
 
     unsigned char      token;
     std::istringstream ss(fenStr);
-    std::memset(reinterpret_cast<char*>(this), 0,
-                reinterpret_cast<char*>(&repHist) - reinterpret_cast<char*>(this));
+    std::memset(reinterpret_cast<char*>(this), 0, sizeof(Position));
 
     st = &stateInfos[stateIdx];
 
@@ -668,6 +667,7 @@ void Position::set_state() {
     st->materialKey = compute_material_key();
 
     repHist[repIdx] = {key, pack_pieces(board), 0};
+    repetition      = 0;
 }
 
 Key Position::compute_material_key() const {
@@ -1149,7 +1149,7 @@ void Position::do_move(Move m, bool givesCheck, Dirties& dirties, const SharedHi
     // Calculate the repetition info. It is the ply distance from the previous
     // occurrence of the same position, negative in the 3-fold case, or zero
     // if the position was not repeated.
-    int repetition = 0;
+    repetition = 0;
     for (int i = 4; i <= st->repWindow; i += 2)
     {
         const RepEntry& stp = repHist[(repIdx - i) & (MAX_REP - 1)];
@@ -1228,9 +1228,10 @@ void Position::undo_move(Move m) {
     }
 
     // Finally point our state back to the previous state
-    stateIdx = (stateIdx - 1) & (MAX_STATES - 1);
-    st       = &stateInfos[stateIdx];
-    repIdx   = (repIdx - 1) & (MAX_REP - 1);
+    stateIdx   = (stateIdx - 1) & (MAX_STATES - 1);
+    st         = &stateInfos[stateIdx];
+    repIdx     = (repIdx - 1) & (MAX_REP - 1);
+    repetition = repHist[repIdx].repetition;
     --gamePly;
 
     assert(pos_is_ok());
@@ -1482,6 +1483,7 @@ void Position::undo_null_move() {
     stateIdx   = (stateIdx - 1) & (MAX_STATES - 1);
     st         = &stateInfos[stateIdx];
     repIdx     = (repIdx - 1) & (MAX_REP - 1);
+    repetition = repHist[repIdx].repetition;
     sideToMove = ~sideToMove;
 }
 
@@ -1606,10 +1608,7 @@ bool Position::is_draw(int ply) const {
 
 // Return a draw score if a position repeats once earlier but strictly
 // after the root, or repeats twice before or at the root.
-bool Position::is_repetition(int ply) const {
-    const int repetition = repHist[repIdx].repetition;
-    return repetition && repetition < ply;
-}
+bool Position::is_repetition(int ply) const { return repetition && repetition < ply; }
 
 // Tests whether there has been at least one repetition
 // of positions since the last capture or pawn move.
@@ -1719,7 +1718,8 @@ void Position::copy_history(const Position& other) {
     stateIdx = other.stateIdx;
     st       = &stateInfos[stateIdx];
     std::memcpy(repHist, other.repHist, sizeof(repHist));
-    repIdx = other.repIdx;
+    repIdx     = other.repIdx;
+    repetition = repHist[repIdx].repetition;
 }
 
 
